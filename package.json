@@ -144,7 +144,7 @@
     "number-to-bn": "^1.7.0",
     "obj-multiplex": "^1.0.0",
     "obs-store": "^3.0.0",
-    "percentile": "^1.2.0",
+    "percentile": "^1.2.1",
     "pify": "^3.0.0",
     "ping-pong-stream": "^1.0.0",
     "pojo-migrator": "^2.1.0",
