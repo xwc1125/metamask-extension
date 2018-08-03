@@ -226,7 +226,7 @@
     "babelify": "^8.0.0",
     "beefy": "^2.1.5",
     "brfs": "^1.6.1",
-    "browserify": "^16.1.1",
+    "browserify": "16.2.1",
     "chai": "^4.1.0",
     "chromedriver": "2.36.0",
     "clipboardy": "^1.2.3",
