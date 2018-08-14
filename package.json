@@ -103,7 +103,7 @@
     "dnode": "^1.2.2",
     "end-of-stream": "^1.1.0",
     "ensnare": "^1.0.0",
-    "eslint-plugin-react": "^7.4.0",
+    "eslint-plugin-react": "^7.11.1",
     "eth-bin-to-ops": "^1.0.1",
     "eth-contract-metadata": "github:MetaMask/eth-contract-metadata#master",
     "eth-ens-namehash": "^2.0.8",
