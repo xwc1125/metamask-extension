@@ -55,6 +55,7 @@ web3.setProvider = function () {
   log.debug('MetaMask - overrode web3.setProvider')
 }
 log.debug('MetaMask - injected web3')
+log.warn('MetaMask - Beginning November 2nd, 2018, dapps must call ethereum.enable() before accessing user accounts. See https://medium.com/metamask/https-medium-com-metamask-breaking-change-injecting-web3-7722797916a8 for more information.')
 
 setupDappAutoReload(web3, inpageProvider.publicConfigStore)
 
