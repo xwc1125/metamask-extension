@@ -36,6 +36,7 @@ const TransactionController = require('./controllers/transactions')
 const BalancesController = require('./controllers/computed-balances')
 const TokenRatesController = require('./controllers/token-rates')
 const DetectTokensController = require('./controllers/detect-tokens')
+const ProviderApprovalController = require('./controllers/provider-approval')
 const nodeify = require('./lib/nodeify')
 const accountImporter = require('./account-import-strategies')
 const getBuyEthUrl = require('./lib/buy-eth-url')
@@ -86,7 +87,7 @@ module.exports = class MetamaskController extends EventEmitter {
     this.preferencesController = new PreferencesController({
       initState: initState.PreferencesController,
       initLangCode: opts.initLangCode,
-      showWatchAssetUi: opts.showWatchAssetUi,
+      openPopup: opts.openPopup,
       network: this.networkController,
     })
 
@@ -208,6 +209,13 @@ module.exports = class MetamaskController extends EventEmitter {
     this.typedMessageManager = new TypedMessageManager()
     this.publicConfigStore = this.initPublicConfigStore()
 
+    this.providerApprovalController = new ProviderApprovalController({
+      closePopup: opts.closePopup,
+      openPopup: opts.openPopup,
+      platform: opts.platform,
+      publicConfigStore: this.publicConfigStore,
+    })
+
     this.store.updateStructure({
       TransactionController: this.txController.store,
       KeyringController: this.keyringController.store,
@@ -237,6 +245,7 @@ module.exports = class MetamaskController extends EventEmitter {
       NoticeController: this.noticeController.memStore,
       ShapeshiftController: this.shapeshiftController.store,
       InfuraController: this.infuraController.store,
+      ProviderApprovalController: this.providerApprovalController.store,
     })
     this.memStore.subscribe(this.sendUpdate.bind(this))
   }
@@ -251,7 +260,10 @@ module.exports = class MetamaskController extends EventEmitter {
         web3_clientVersion: `MetaMask/v${version}`,
       },
       // account mgmt
-      getAccounts: async () => {
+      getAccounts: async ({ origin }) => {
+        // Expose no accounts if this origin has not been approved, preventing
+        // account-requring RPC methods from completing successfully
+        if (origin !== 'MetaMask' && !this.providerApprovalController.isApproved(origin)) { return [] }
         const isUnlocked = this.keyringController.memStore.getState().isUnlocked
         const selectedAddress = this.preferencesController.getSelectedAddress()
         // only show address if account is unlocked
@@ -335,6 +347,7 @@ module.exports = class MetamaskController extends EventEmitter {
     const noticeController = this.noticeController
     const addressBookController = this.addressBookController
     const networkController = this.networkController
+    const providerApprovalController = this.providerApprovalController
 
     return {
       // etc
@@ -418,6 +431,10 @@ module.exports = class MetamaskController extends EventEmitter {
       // notices
       checkNotices: noticeController.updateNoticesList.bind(noticeController),
       markNoticeRead: noticeController.markNoticeRead.bind(noticeController),
+
+      approveProviderRequest: providerApprovalController.approveProviderRequest.bind(providerApprovalController),
+      clearApprovedOrigins: providerApprovalController.clearApprovedOrigins.bind(providerApprovalController),
+      rejectProviderRequest: providerApprovalController.rejectProviderRequest.bind(providerApprovalController),
     }
   }
 

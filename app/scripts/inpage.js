@@ -22,6 +22,22 @@ var metamaskStream = new LocalMessageDuplexStream({
 // compose the inpage provider
 var inpageProvider = new MetamaskInpageProvider(metamaskStream)
 
+// Augment the provider with its enable method
+inpageProvider.enable = function () {
+  return new Promise((resolve, reject) => {
+    window.addEventListener('ethereumprovider', ({ detail }) => {
+      if (typeof detail.error !== 'undefined') {
+        reject(detail.error)
+      } else {
+        inpageProvider.publicConfigStore.once('update', () => {
+          resolve(inpageProvider.send({ method: 'eth_accounts' }).result)
+        })
+      }
+    })
+    window.postMessage({ type: 'ETHEREUM_ENABLE_PROVIDER' }, '*')
+  })
+}
+
 //
 // setup web3
 //
@@ -34,6 +50,7 @@ if (typeof window.web3 !== 'undefined') {
      and try again.`)
 }
 var web3 = new Web3(inpageProvider)
+window.ethereum = inpageProvider // eslint-disable-line no-unused-vars
 web3.setProvider = function () {
   log.debug('MetaMask - overrode web3.setProvider')
 }
