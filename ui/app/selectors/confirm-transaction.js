@@ -1,7 +1,17 @@
 import { createSelector } from 'reselect'
 import txHelper from '../../lib/tx-helper'
-import { calcTokenAmount } from '../token-util'
-import { roundExponential } from '../helpers/confirm-transaction/util'
+import { calcTokenAmount } from '../helpers/utils/token-util'
+import {
+  roundExponential,
+  getValueFromWeiHex,
+  getHexGasTotal,
+  getTransactionFee,
+  addFiat,
+  addEth,
+} from '../helpers/utils/confirm-tx.util'
+import {
+  sumHexes,
+} from '../helpers/utils/transactions.util'
 
 const unapprovedTxsSelector = state => state.metamask.unapprovedTxs
 const unapprovedMsgsSelector = state => state.metamask.unapprovedMsgs
@@ -93,8 +103,9 @@ export const unconfirmedTransactionsCountSelector = createSelector(
 
 export const currentCurrencySelector = state => state.metamask.currentCurrency
 export const conversionRateSelector = state => state.metamask.conversionRate
+export const getNativeCurrency = state => state.metamask.nativeCurrency
 
-const txDataSelector = state => state.confirmTransaction.txData
+export const txDataSelector = state => state.confirmTransaction.txData
 const tokenDataSelector = state => state.confirmTransaction.tokenData
 const tokenPropsSelector = state => state.confirmTransaction.tokenProps
 
@@ -126,7 +137,8 @@ const TOKEN_PARAM_VALUE = '_value'
 
 export const tokenAmountAndToAddressSelector = createSelector(
   tokenDataParamsSelector,
-  params => {
+  tokenDecimalsSelector,
+  (params, tokenDecimals) => {
     let toAddress = ''
     let tokenAmount = 0
 
@@ -135,7 +147,12 @@ export const tokenAmountAndToAddressSelector = createSelector(
       const valueParam = params.find(param => param.name === TOKEN_PARAM_VALUE)
       toAddress = toParam ? toParam.value : params[0].value
       const value = valueParam ? Number(valueParam.value) : Number(params[1].value)
-      tokenAmount = roundExponential(value)
+
+      if (tokenDecimals) {
+        tokenAmount = calcTokenAmount(value, tokenDecimals).toNumber()
+      }
+
+      tokenAmount = roundExponential(tokenAmount)
     }
 
     return {
@@ -157,7 +174,7 @@ export const approveTokenAmountAndToAddressSelector = createSelector(
       const value = Number(params.find(param => param.name === TOKEN_PARAM_VALUE).value)
 
       if (tokenDecimals) {
-        tokenAmount = calcTokenAmount(value, tokenDecimals)
+        tokenAmount = calcTokenAmount(value, tokenDecimals).toNumber()
       }
 
       tokenAmount = roundExponential(tokenAmount)
@@ -182,7 +199,7 @@ export const sendTokenTokenAmountAndToAddressSelector = createSelector(
       let value = Number(params.find(param => param.name === TOKEN_PARAM_VALUE).value)
 
       if (tokenDecimals) {
-        value = calcTokenAmount(value, tokenDecimals)
+        value = calcTokenAmount(value, tokenDecimals).toNumber()
       }
 
       tokenAmount = roundExponential(value)
@@ -200,3 +217,51 @@ export const contractExchangeRateSelector = createSelector(
   tokenAddressSelector,
   (contractExchangeRates, tokenAddress) => contractExchangeRates[tokenAddress]
 )
+
+export const transactionFeeSelector = function (state, txData) {
+  const currentCurrency = currentCurrencySelector(state)
+  const conversionRate = conversionRateSelector(state)
+  const nativeCurrency = getNativeCurrency(state)
+
+  const { txParams: { value = '0x0', gas: gasLimit = '0x0', gasPrice = '0x0' } = {} } = txData
+
+  const fiatTransactionAmount = getValueFromWeiHex({
+    value, fromCurrency: nativeCurrency, toCurrency: currentCurrency, conversionRate, numberOfDecimals: 2,
+  })
+  const ethTransactionAmount = getValueFromWeiHex({
+    value, fromCurrency: nativeCurrency, toCurrency: nativeCurrency, conversionRate, numberOfDecimals: 6,
+  })
+
+  const hexTransactionFee = getHexGasTotal({ gasLimit, gasPrice })
+
+  const fiatTransactionFee = getTransactionFee({
+    value: hexTransactionFee,
+    fromCurrency: nativeCurrency,
+    toCurrency: currentCurrency,
+    numberOfDecimals: 2,
+    conversionRate,
+  })
+  const ethTransactionFee = getTransactionFee({
+    value: hexTransactionFee,
+    fromCurrency: nativeCurrency,
+    toCurrency: nativeCurrency,
+    numberOfDecimals: 6,
+    conversionRate,
+  })
+
+  const fiatTransactionTotal = addFiat(fiatTransactionFee, fiatTransactionAmount)
+  const ethTransactionTotal = addEth(ethTransactionFee, ethTransactionAmount)
+  const hexTransactionTotal = sumHexes(value, hexTransactionFee)
+
+  return {
+    hexTransactionAmount: value,
+    fiatTransactionAmount,
+    ethTransactionAmount,
+    hexTransactionFee,
+    fiatTransactionFee,
+    ethTransactionFee,
+    fiatTransactionTotal,
+    ethTransactionTotal,
+    hexTransactionTotal,
+  }
+}

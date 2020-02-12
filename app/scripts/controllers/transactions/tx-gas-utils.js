@@ -1,11 +1,12 @@
-const EthQuery = require('ethjs-query')
-const {
-  hexToBn,
-  BnMultiplyByFraction,
-  bnToHex,
-} = require('../../lib/util')
-const { addHexPrefix } = require('ethereumjs-util')
+import EthQuery from 'ethjs-query'
+import { hexToBn, BnMultiplyByFraction, bnToHex } from '../../lib/util'
+import log from 'loglevel'
+import { addHexPrefix } from 'ethereumjs-util'
+import { SEND_ETHER_ACTION_KEY } from '../../../../ui/app/helpers/constants/transactions.js'
+
 const SIMPLE_GAS_COST = '0x5208' // Hex for 21000, cost of a simple send.
+
+import { TRANSACTION_NO_CONTRACT_ERROR_KEY } from '../../../../ui/app/helpers/constants/error-keys'
 
 /**
 tx-gas-utils are gas utility methods for Transaction manager
@@ -21,18 +22,26 @@ class TxGasUtil {
   }
 
   /**
-    @param txMeta {Object} - the txMeta object
-    @returns {object} the txMeta object with the gas written to the txParams
+    @param {Object} txMeta - the txMeta object
+    @returns {Object} - the txMeta object with the gas written to the txParams
   */
-  async analyzeGasUsage (txMeta) {
+  async analyzeGasUsage (txMeta, getCodeResponse) {
     const block = await this.query.getBlockByNumber('latest', false)
     let estimatedGasHex
     try {
-      estimatedGasHex = await this.estimateTxGas(txMeta, block.gasLimit)
+      estimatedGasHex = await this.estimateTxGas(txMeta, block.gasLimit, getCodeResponse)
     } catch (err) {
+      log.warn(err)
       txMeta.simulationFails = {
         reason: err.message,
+        errorKey: err.errorKey,
+        debug: { blockNumber: block.number, blockGasLimit: block.gasLimit },
       }
+
+      if (err.errorKey === TRANSACTION_NO_CONTRACT_ERROR_KEY) {
+        txMeta.simulationFails.debug.getCodeResponse = err.getCodeResponse
+      }
+
       return txMeta
     }
     this.setTxGas(txMeta, block.gasLimit, estimatedGasHex)
@@ -41,11 +50,11 @@ class TxGasUtil {
 
   /**
     Estimates the tx's gas usage
-    @param txMeta {Object} - the txMeta object
-    @param blockGasLimitHex {string} - hex string of the block's gas limit
-    @returns {string} the estimated gas limit as a hex string
+    @param {Object} txMeta - the txMeta object
+    @param {string} blockGasLimitHex - hex string of the block's gas limit
+    @returns {string} - the estimated gas limit as a hex string
   */
-  async estimateTxGas (txMeta, blockGasLimitHex) {
+  async estimateTxGas (txMeta, blockGasLimitHex, getCodeResponse) {
     const txParams = txMeta.txParams
 
     // check if gasLimit is already specified
@@ -56,32 +65,48 @@ class TxGasUtil {
       return txParams.gas
     }
 
-    // if recipient has no code, gas is 21k max:
     const recipient = txParams.to
     const hasRecipient = Boolean(recipient)
-    let code
-    if (recipient) code = await this.query.getCode(recipient)
 
-    if (hasRecipient && (!code || code === '0x')) {
-      txParams.gas = SIMPLE_GAS_COST
-      txMeta.simpleSend = true // Prevents buffer addition
-      return SIMPLE_GAS_COST
+    // see if we can set the gas based on the recipient
+    if (hasRecipient) {
+      // For an address with no code, geth will return '0x', and ganache-core v2.2.1 will return '0x0'
+      const categorizedAsSimple = txMeta.transactionCategory === SEND_ETHER_ACTION_KEY
+
+      if (categorizedAsSimple) {
+        // if there's data in the params, but there's no contract code, it's not a valid transaction
+        if (txParams.data) {
+          const err = new Error('TxGasUtil - Trying to call a function on a non-contract address')
+          // set error key so ui can display localized error message
+          err.errorKey = TRANSACTION_NO_CONTRACT_ERROR_KEY
+
+          // set the response on the error so that we can see in logs what the actual response was
+          err.getCodeResponse = getCodeResponse
+          throw err
+        }
+
+        // This is a standard ether simple send, gas requirement is exactly 21k
+        txParams.gas = SIMPLE_GAS_COST
+        // prevents buffer addition
+        txMeta.simpleSend = true
+        return SIMPLE_GAS_COST
+      }
     }
 
-    // if not, fall back to block gasLimit
+    // fallback to block gasLimit
     const blockGasLimitBN = hexToBn(blockGasLimitHex)
     const saferGasLimitBN = BnMultiplyByFraction(blockGasLimitBN, 19, 20)
     txParams.gas = bnToHex(saferGasLimitBN)
 
-    // run tx
+    // estimate tx gas requirements
     return await this.query.estimateGas(txParams)
   }
 
   /**
     Writes the gas on the txParams in the txMeta
-    @param txMeta {Object} - the txMeta object to write to
-    @param blockGasLimitHex {string} - the block gas limit hex
-    @param estimatedGasHex {string} - the estimated gas hex
+    @param {Object} txMeta - the txMeta object to write to
+    @param {string} blockGasLimitHex - the block gas limit hex
+    @param {string} estimatedGasHex - the estimated gas hex
   */
   setTxGas (txMeta, blockGasLimitHex, estimatedGasHex) {
     txMeta.estimatedGas = addHexPrefix(estimatedGasHex)
@@ -103,9 +128,9 @@ class TxGasUtil {
   /**
     Adds a gas buffer with out exceeding the block gas limit
 
-    @param initialGasLimitHex {string} - the initial gas limit to add the buffer too
-    @param blockGasLimitHex {string} - the block gas limit
-    @returns {string} the buffered gas limit as a hex string
+    @param {string} initialGasLimitHex - the initial gas limit to add the buffer too
+    @param {string} blockGasLimitHex - the block gas limit
+    @returns {string} - the buffered gas limit as a hex string
   */
   addGasBuffer (initialGasLimitHex, blockGasLimitHex) {
     const initialGasLimitBn = hexToBn(initialGasLimitHex)
@@ -114,12 +139,16 @@ class TxGasUtil {
     const bufferedGasLimitBn = initialGasLimitBn.muln(1.5)
 
     // if initialGasLimit is above blockGasLimit, dont modify it
-    if (initialGasLimitBn.gt(upperGasLimitBn)) return bnToHex(initialGasLimitBn)
+    if (initialGasLimitBn.gt(upperGasLimitBn)) {
+      return bnToHex(initialGasLimitBn)
+    }
     // if bufferedGasLimit is below blockGasLimit, use bufferedGasLimit
-    if (bufferedGasLimitBn.lt(upperGasLimitBn)) return bnToHex(bufferedGasLimitBn)
+    if (bufferedGasLimitBn.lt(upperGasLimitBn)) {
+      return bnToHex(bufferedGasLimitBn)
+    }
     // otherwise use blockGasLimit
     return bnToHex(upperGasLimitBn)
   }
 }
 
-module.exports = TxGasUtil
+export default TxGasUtil

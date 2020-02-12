@@ -1,6 +1,6 @@
-const assert = require('assert')
-const txStateHistoryHelper = require('../../../../../app/scripts/controllers/transactions/lib/tx-state-history-helper')
-const testVault = require('../../../../data/v17-long-history.json')
+import assert from 'assert'
+import txStateHistoryHelper from '../../../../../app/scripts/controllers/transactions/lib/tx-state-history-helper'
+import testVault from '../../../../data/v17-long-history.json'
 
 describe('Transaction state history helper', function () {
 
@@ -29,7 +29,7 @@ describe('Transaction state history helper', function () {
 
   describe('#migrateFromSnapshotsToDiffs', function () {
     it('migrates history to diffs and can recover original values', function () {
-      testVault.data.TransactionController.transactions.forEach((tx, index) => {
+      testVault.data.TransactionController.transactions.forEach((tx) => {
         const newHistory = txStateHistoryHelper.migrateFromSnapshotsToDiffs(tx.history)
         newHistory.forEach((newEntry, index) => {
           if (index === 0) {
@@ -106,7 +106,9 @@ describe('Transaction state history helper', function () {
       assert.equal(result[0].path, expectedEntry1.path)
       assert.equal(result[0].value, expectedEntry1.value)
       assert.equal(result[0].value, expectedEntry1.value)
-      if (note) { assert.equal(result[0].note, note) }
+      if (note) {
+        assert.equal(result[0].note, note)
+      }
 
       assert.ok(result[0].timestamp >= before && result[0].timestamp <= after)
 

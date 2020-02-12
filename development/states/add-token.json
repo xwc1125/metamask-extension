@@ -93,7 +93,6 @@
       "type": "testnet"
     },
     "shapeShiftTxList": [],
-    "lostAccounts": [],
     "send": {
       "gasLimit": null,
       "gasPrice": null,
@@ -104,10 +103,14 @@
       "amount": "0x0",
       "memo": "",
       "errors": {},
+      "warnings": {},
       "maxModeOn": false,
       "editingTransactionId": null
     },
-    "currentLocale": "en"
+    "currentLocale": "en",
+    "preferences": {
+      "useNativeCurrencyAsPrimaryCurrency": true
+    }
   },
   "appState": {
     "menuOpen": false,

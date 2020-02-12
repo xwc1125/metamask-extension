@@ -10,7 +10,33 @@ The `metamask-background` describes the file at `app/scripts/background.js`, whi
 
 When a new site is visited, the WebExtension creates a new `ContentScript` in that page's context, which can be seen at `app/scripts/contentscript.js`. This script represents a per-page setup process, which creates the per-page `web3` api, connects it to the background script via the Port API (wrapped in a [stream abstraction](https://github.com/substack/stream-handbook)), and injected into the DOM before anything loads.
 
-The most confusing part about porting MetaMask to a new platform is the way we provide the Web3 API over a series of streams between contexts. Once you understand how we create the [InpageProvider](../app/scripts/lib/inpage-provider.js) in the [inpage.js script](../app/scripts/inpage.js), you will be able to understand how the [port-stream](../app/scripts/lib/port-stream.js) is just a thin wrapper around the [postMessage API](https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage), and a similar stream API can be wrapped around any communication channel to communicate with the `MetaMaskController` via its `setupUntrustedCommunication(stream, domain)` method.
+You can choose to use this streaming interface to connect to the MetaMask controller over any transport you can wrap with a stream, by connecting it to the [metamask-inpage-provider](https://github.com/MetaMask/metamask-inpage-provider), but you can also construct a provider per domain like this:
+
+```javascript
+const providerFromEngine = require('eth-json-rpc-middleware/providerFromEngine')
+
+/**
+* returns a provider restricted to the requesting domain
+**/
+function incomingConnection (domain) {
+  const engine = metamaskController.setupProviderEngine(domain)
+  const provider = providerFromEngine(engine)
+  return provider
+}
+```
+
+Please note if you take this approach, you are responsible for cleaning up the filters when the page is closed:
+
+```
+const filterMiddleware = engine._middleware.filter(mid => mid.name === 'filterMiddleware')[0]
+filterMiddleware.destroy()
+```
+
+### Using the Streams Interface
+
+Only use this if you intend to construct the [metamask-inpage-provider](https://github.com/MetaMask/metamask-inpage-provider) over a stream!
+
+The most confusing part about porting MetaMask to a new platform is the way we provide the Web3 API over a series of streams between contexts. Once you understand how we create the [MetamaskInpageProvider](https://github.com/MetaMask/metamask-inpage-provider/blob/master/index.js) in the [inpage.js script](../app/scripts/inpage.js), you will be able to understand how the [extension-port-stream](https://github.com/MetaMask/extension-port-stream) is just a thin wrapper around the [Port postMessage API](https://developer.chrome.com/extensions/runtime#property-Port-postMessage) (see the [Chrome documentation for extension message passing](https://developer.chrome.com/extensions/messaging#connect) for more information). A similar stream API can be wrapped around any communication channel to communicate with the `MetaMaskController` via its `setupUntrustedCommunication(stream, domain)` method.
 
 ### The MetaMask Controller
 
@@ -21,7 +47,7 @@ The core functionality of MetaMask all lives in what we call [The MetaMask Contr
 When calling `new MetaMask(opts)`, many platform-specific options are configured. The keys on `opts` are as follows:
 
 - initState: The last emitted state, used for restoring persistent state between sessions.
-- platform: The `platform` object defines a variety of platform-specific functions, including opening the confirmation view, and opening web sites.
+- platform: The `platform` object defines a variety of platform-specific functions, including opening the confirmation view, and opening websites.
 - encryptor - An object that provides access to the desired encryption methods.
 
 ##### Encryptor
@@ -52,7 +78,7 @@ Returns a JavaScript object filled with callback functions representing every op
 
 The MetaMask UI is essentially just a website that can be configured by passing it the API and state subscriptions from above. Anyone could make a UI that consumes these, effectively reskinning MetaMask.
 
-You can see this in action in our file [ui/index.js](https://github.com/MetaMask/metamask-extension/blob/master/ui/index.js). There you can see an argument being passed in named `accountManager`, which is essentially a MetaMask controller (forgive its really outdated parameter name!). With access to that object, the UI is able to initialize a whole React/Redux app that relies on this API for its account/blockchain-related/persistent states.
+You can see this in action in our file [ui/index.js](https://github.com/MetaMask/metamask-extension/blob/master/ui/index.js). There you can see the background connection being passed in, which is essentially the MetaMask controller. With access to that object, the UI is able to initialize a whole React/Redux app that relies on this API for its account/blockchain-related/persistent states.
 
 ## Putting it Together
 
@@ -64,7 +90,6 @@ In that file, there's a lot going on, so it's maybe worth focusing on our MetaMa
 const controller = new MetamaskController({
     // User confirmation callbacks:
     showUnconfirmedMessage: triggerUi,
-    unlockAccountMessage: triggerUi,
     showUnapprovedTx: triggerUi,
     // initial state
     initState,
@@ -89,13 +114,12 @@ MetaMask has two kinds of [duplex stream APIs](https://github.com/substack/strea
 
 If you are making a MetaMask-powered browser for a new platform, one of the trickiest tasks will be injecting the Web3 API into websites that are visited. On WebExtensions, we actually have to pipe data through a total of three JS contexts just to let sites talk to our background process (site -> contentscript -> background).
 
-To see how we do that, you can refer to the [inpage script](https://github.com/MetaMask/metamask-extension/blob/master/app/scripts/inpage.js) that we inject into every website. There you can see it creates a multiplex stream to the background, and uses it to initialize what we call the [inpage-provider](https://github.com/MetaMask/metamask-extension/blob/master/app/scripts/lib/inpage-provider.js), which you can see stubs a few methods out, but mostly just passes calls to `sendAsync` through the stream it's passed! That's really all the magic that's needed to create a web3-like API in a remote context, once you have a stream to MetaMask available.
+To see how we do that, you can refer to the [inpage script](https://github.com/MetaMask/metamask-extension/blob/master/app/scripts/inpage.js) that we inject into every website. There you can see it creates a multiplex stream to the background, and uses it to initialize what we call the [MetamaskInpageProvider](https://github.com/MetaMask/metamask-inpage-provider/blob/master/index.js), which you can see stubs a few methods out, but mostly just passes calls to `sendAsync` through the stream it's passed! That's really all the magic that's needed to create a web3-like API in a remote context, once you have a stream to MetaMask available.
 
-In `inpage.js` you can see we create a `PortStream`, that's just a class we use to wrap WebExtension ports as streams, so we can reuse our favorite stream abstraction over the more irregular API surface of the WebExtension. In a new platform, you will probably need to construct this stream differently. The key is that you need to construct a stream that talks from the site context to the background. Once you have that set up, it works like magic!
+In `inpage.js` you can see we create a [`postMessage Stream`](https://github.com/MetaMask/metamask-extension/blob/develop/app/scripts/inpage.js#L52), that's just a class we use to wrap WebExtension postMessage as streams, so we can reuse our favorite stream abstraction over the more irregular API surface of the WebExtension. In a new platform, you will probably need to construct this stream differently. The key is that you need to construct a stream that talks from the site context to the background. Once you have that set up, it works like magic!
 
 If streams seem new and confusing to you, that's ok, they can seem strange at first. To help learn them, we highly recommend reading Substack's [Stream Handbook](https://github.com/substack/stream-handbook), or going through NodeSchool's interactive command-line class [Stream Adventure](https://github.com/workshopper/stream-adventure), also maintained by Substack.
 
 ## Conclusion
 
-I hope this has been helpful to you! If you have any other questionsm, or points you think need clarification in this guide, please [open an issue on our GitHub](https://github.com/MetaMask/metamask-plugin/issues/new)!
-
+I hope this has been helpful to you! If you have any other questions, or points you think need clarification in this guide, please [open an issue on our GitHub](https://github.com/MetaMask/metamask-plugin/issues/new)!

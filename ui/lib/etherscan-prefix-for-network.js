@@ -1,4 +1,4 @@
-module.exports = function (network) {
+export default function etherscanNetworkPrefix (network) {
   const net = parseInt(network)
   let prefix
   switch (net) {
@@ -13,6 +13,9 @@ module.exports = function (network) {
       break
     case 42: // kovan test net
       prefix = 'kovan.'
+      break
+    case 5: // goerli test net
+      prefix = 'goerli.'
       break
     default:
       prefix = ''

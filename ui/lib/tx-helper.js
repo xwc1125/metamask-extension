@@ -1,7 +1,7 @@
-const valuesFor = require('../app/util').valuesFor
-const log = require('loglevel')
+import { valuesFor } from '../app/helpers/utils/util'
+import log from 'loglevel'
 
-module.exports = function (unapprovedTxs, unapprovedMsgs, personalMsgs, typedMessages, network) {
+export default function txHelper (unapprovedTxs, unapprovedMsgs, personalMsgs, typedMessages, network) {
   log.debug('tx-helper called with params:')
   log.debug({ unapprovedTxs, unapprovedMsgs, personalMsgs, typedMessages, network })
 
@@ -21,7 +21,7 @@ module.exports = function (unapprovedTxs, unapprovedMsgs, personalMsgs, typedMes
   allValues = allValues.concat(typedValues)
 
   allValues = allValues.sort((a, b) => {
-    return a.time > b.time
+    return a.time - b.time
   })
 
   return allValues

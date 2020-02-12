@@ -1,9 +1,7 @@
-const assert = require('assert')
-const Transaction = require('ethereumjs-tx')
-
-
-const { hexToBn, bnToHex } = require('../../../../../app/scripts/lib/util')
-const TxUtils = require('../../../../../app/scripts/controllers/transactions/tx-gas-utils')
+import assert from 'assert'
+import Transaction from 'ethereumjs-tx'
+import { hexToBn, bnToHex } from '../../../../../app/scripts/lib/util'
+import TxUtils from '../../../../../app/scripts/controllers/transactions/tx-gas-utils'
 
 
 describe('txUtils', function () {
@@ -11,7 +9,7 @@ describe('txUtils', function () {
 
   before(function () {
     txUtils = new TxUtils(new Proxy({}, {
-      get: (obj, name) => {
+      get: () => {
         return () => {}
       },
     }))

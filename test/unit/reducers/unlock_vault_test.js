@@ -1,11 +1,7 @@
-// var jsdom = require('mocha-jsdom')
-var assert = require('assert')
-// var freeze = require('deep-freeze-strict')
-var path = require('path')
-var sinon = require('sinon')
-
-var actions = require(path.join(__dirname, '..', '..', '..', 'ui', 'app', 'actions.js'))
-var reducers = require(path.join(__dirname, '..', '..', '..', 'ui', 'app', 'reducers.js'))
+import assert from 'assert'
+import sinon from 'sinon'
+import * as actions from '../../../ui/app/store/actions'
+import reducers from '../../../ui/app/ducks'
 
 describe('#unlockMetamask(selectedAccount)', function () {
   beforeEach(function () {

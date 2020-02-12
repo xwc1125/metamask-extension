@@ -1,4 +1,6 @@
-@import './buttons.scss';
+@import '../../../components/ui/button/buttons';
+@import '../../../components/ui/dialog/dialog';
+@import '../../../components/ui/snackbar/index';
 
 @import './footer.scss';
 
@@ -30,13 +32,9 @@
 
 @import './currency-display.scss';
 
-@import './account-menu.scss';
-
 @import './menu.scss';
 
 @import './gas-slider.scss';
-
-@import './settings.scss';
 
 @import './tab-bar.scss';
 
@@ -44,7 +42,7 @@
 
 @import './request-signature.scss';
 
-@import './account-dropdown-mini.scss';
+@import './account-details-dropdown.scss';
 
 @import './editable-label.scss';
 
@@ -54,6 +52,4 @@
 
 @import './tooltip.scss';
 
-@import './welcome-screen.scss';
-
-@import '../../../components/index';
+@import '../../../components/app/index';

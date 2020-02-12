@@ -1,40 +1,34 @@
-const assert = require('assert')
-const recipientBlackListChecker = require('../../../../../app/scripts/controllers/transactions/lib/recipient-blacklist-checker')
-const {
-  ROPSTEN_CODE,
-  RINKEYBY_CODE,
-  KOVAN_CODE,
-} = require('../../../../../app/scripts/controllers/network/enums')
-
-const KeyringController = require('eth-keyring-controller')
+import assert from 'assert'
+import recipientBlackListChecker from '../../../../../app/scripts/controllers/transactions/lib/recipient-blacklist-checker'
+import { ROPSTEN_CODE, RINKEBY_CODE, KOVAN_CODE, GOERLI_CODE } from '../../../../../app/scripts/controllers/network/enums'
+import KeyringController from 'eth-keyring-controller'
 
 describe('Recipient Blacklist Checker', function () {
-
-  let publicAccounts
-
-  before(async function () {
-    const damnedMnemonic = 'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat'
-    const keyringController = new KeyringController({})
-    const Keyring = keyringController.getKeyringClassForType('HD Key Tree')
-    const opts = {
-      mnemonic: damnedMnemonic,
-      numberOfAccounts: 10,
-    }
-    const keyring = new Keyring(opts)
-    publicAccounts = await keyring.getAccounts()
-  })
-
   describe('#checkAccount', function () {
+    let publicAccounts
+
+    before(async function () {
+      const damnedMnemonic = 'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat'
+      const keyringController = new KeyringController({})
+      const Keyring = keyringController.getKeyringClassForType('HD Key Tree')
+      const opts = {
+        mnemonic: damnedMnemonic,
+        numberOfAccounts: 10,
+      }
+      const keyring = new Keyring(opts)
+      publicAccounts = await keyring.getAccounts()
+    })
+
     it('does not fail on test networks', function () {
       let callCount = 0
-      const networks = [ROPSTEN_CODE, RINKEYBY_CODE, KOVAN_CODE]
+      const networks = [ROPSTEN_CODE, RINKEBY_CODE, KOVAN_CODE, GOERLI_CODE]
       for (const networkId in networks) {
         publicAccounts.forEach((account) => {
-           recipientBlackListChecker.checkAccount(networkId, account)
-            callCount++
+          recipientBlackListChecker.checkAccount(networkId, account)
+          callCount++
         })
       }
-      assert.equal(callCount, 30)
+      assert.equal(callCount, 40)
     })
 
     it('fails on mainnet', function () {
